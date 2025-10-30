@@ -10,12 +10,28 @@
 #define NAVIO 3
 #define HAB  5
 
+// Habilitar/Desabilitar cores ANSI (1 = ligado, 0 = desligado)
+#define USE_ANSI_COLORS 1
+
+#if USE_ANSI_COLORS
+  #define C_RESET  "\x1b[0m"
+  #define C_WATER  "\x1b[37m"  // cinza claro
+  #define C_SHIP   "\x1b[36m"  // ciano
+  #define C_SKILL  "\x1b[33m"  // amarelo
+  #define C_HDR    "\x1b[90m"  // cinza escuro (índices/bordas)
+#else
+  #define C_RESET  ""
+  #define C_WATER  ""
+  #define C_SHIP   ""
+  #define C_SKILL  ""
+  #define C_HDR    ""
+#endif
+
 // Orientações de navio
 typedef enum { HORIZONTAL, VERTICAL, DIAG_PRINCIPAL, DIAG_SECUNDARIA } Orientacao;
 
 // ------------------------
-// Coordenadas dos 4 navios
-// (índices 0..9)
+// Coordenadas dos 4 navios (índices 0..9)
 // ------------------------
 #define N1_LINHA 2   // horizontal ↔ a partir de (2,4)
 #define N1_COL   4
@@ -27,29 +43,26 @@ typedef enum { HORIZONTAL, VERTICAL, DIAG_PRINCIPAL, DIAG_SECUNDARIA } Orientaca
 #define N4_COL   8
 
 // ------------------------
-// Habilidades (matrizes 5x5)
-// ORIGEM NO TABULEIRO (onde "ancora" a máscara)
+// Habilidades (máscaras 5x5)
 // ------------------------
 #define HAB_N 5
 
-// Pontos de origem no TABULEIRO para cada habilidade
-#define ORIG_CONE_R   4
-#define ORIG_CONE_C   5
-#define ORIG_CRUZ_R   5
-#define ORIG_CRUZ_C   5
-#define ORIG_OCTA_R   3
-#define ORIG_OCTA_C   3
+// Pontos de origem no TABULEIRO
+#define ORIG_CONE_R 4
+#define ORIG_CONE_C 5
+#define ORIG_CRUZ_R 5
+#define ORIG_CRUZ_C 5
+#define ORIG_OCTA_R 3
+#define ORIG_OCTA_C 3
 
-// Para centralizar/sobrepor, definimos QUAL é a célula-origem DENTRO DA MÁSCARA
-// - Cone: origem no TOPO da máscara, coluna do meio -> (0,2)
-// - Cruz e Octaedro: origem no CENTRO -> (2,2)
-#define MASK_ORIG_CONE_R 0
-#define MASK_ORIG_CONE_C 2
-#define MASK_ORIG_CENTRO_R 2
+// Ponto de origem DENTRO DAS MÁSCARAS
+#define MASK_ORIG_CONE_R   0  // topo do cone
+#define MASK_ORIG_CONE_C   2  // coluna do meio
+#define MASK_ORIG_CENTRO_R 2  // centro (2,2) p/ cruz e octaedro
 #define MASK_ORIG_CENTRO_C 2
 
 // ========================
-// Utilidades de NAVIOS
+// NAVIOS
 // ========================
 bool cabe_no_tabuleiro(int linha, int col, Orientacao o) {
     switch (o) {
@@ -92,13 +105,8 @@ void posiciona_navio(int tab[TAM][TAM], int vetor[TAM_NAVIO],
 }
 
 // ========================
-// Utilidades de HABILIDADES
+// HABILIDADES
 // ========================
-
-// Aplica uma máscara HAB_N×HAB_N (valores 0/1) no tabuleiro.
-// origin_r/origin_c: ponto de origem no TABULEIRO.
-// mask_or_r/mask_or_c: qual célula da MÁSCARA corresponde a esse ponto.
-// Marca HAB (5) onde mask==1 *sem* cobrir navio (mantém 3).
 void aplica_habilidade(int tab[TAM][TAM], int mask[HAB_N][HAB_N],
                        int origin_r, int origin_c,
                        int mask_or_r, int mask_or_c)
@@ -109,23 +117,49 @@ void aplica_habilidade(int tab[TAM][TAM], int mask[HAB_N][HAB_N],
 
             int r = origin_r + (i - mask_or_r);
             int c = origin_c + (j - mask_or_c);
-
-            // garante ficar dentro do tabuleiro (condicionais)
             if (r < 0 || r >= TAM || c < 0 || c >= TAM) continue;
 
-            // não sobrepõe navio para manter visual (3 tem prioridade)
+            // Não cobre navio (3 tem prioridade visual)
             if (tab[r][c] == AGUA) tab[r][c] = HAB;
         }
     }
 }
 
+// Impressão bonita com bordas, índices e legenda
 void exibe_tabuleiro(int tab[TAM][TAM]) {
+    // Cabeçalho de colunas
+    printf("%s    ", C_HDR);
+    for (int j = 0; j < TAM; j++) printf("%d ", j);
+    printf("%s\n", C_RESET);
+
+    // Linha superior
+    printf("%s   ┌", C_HDR);
+    for (int j = 0; j < TAM*2 - 1; j++) printf("─");
+    printf("┐%s\n", C_RESET);
+
     for (int i = 0; i < TAM; i++) {
+        // Número da linha
+        printf("%s%2d %s│%s ", C_HDR, i, C_HDR, C_RESET);
         for (int j = 0; j < TAM; j++) {
-            printf("%d ", tab[i][j]);
+            int v = tab[i][j];
+            if (v == NAVIO)      printf("%s%d%s", C_SHIP, v, C_RESET);
+            else if (v == HAB)   printf("%s%d%s", C_SKILL, v, C_RESET);
+            else                 printf("%s%d%s", C_WATER, v, C_RESET);
+            if (j != TAM-1) printf(" ");
         }
-        printf("\n");
+        printf("%s │%s\n", C_HDR, C_RESET);
     }
+
+    // Linha inferior
+    printf("%s   └", C_HDR);
+    for (int j = 0; j < TAM*2 - 1; j++) printf("─");
+    printf("┘%s\n", C_RESET);
+
+    // Legenda
+    printf("%sLegenda:%s ", C_HDR, C_RESET);
+    printf("%s0%s=água  ",   C_WATER, C_RESET);
+    printf("%s3%s=navio  ",  C_SHIP,  C_RESET);
+    printf("%s5%s=habilidade\n", C_SKILL, C_RESET);
 }
 
 int main(void) {
@@ -166,25 +200,22 @@ int main(void) {
     }
     posiciona_navio(tab, nav_d2, N4_LINHA, N4_COL, DIAG_SECUNDARIA);
 
-    // 3) Matrizes de HABILIDADE (0 = não afeta, 1 = afeta)
-    // --- CONE (origem no topo, coluna central): formato 3 "andares"
-    int cone[HAB_N][HAB_N] = {
+    // 3) Matrizes de habilidade (0/1)
+    int cone[HAB_N][HAB_N] = {      // origem no TOPO (0,2)
         {0,0,1,0,0},
         {0,1,1,1,0},
         {1,1,1,1,1},
         {0,0,0,0,0},
         {0,0,0,0,0}
     };
-    // --- CRUZ (origem no centro)
-    int cruz[HAB_N][HAB_N] = {
+    int cruz[HAB_N][HAB_N] = {      // origem no CENTRO (2,2)
         {0,0,1,0,0},
         {0,0,1,0,0},
         {1,1,1,1,1},
         {0,0,1,0,0},
         {0,0,1,0,0}
     };
-    // --- OCTAEDRO (losango; origem no centro)
-    int octa[HAB_N][HAB_N] = {
+    int octa[HAB_N][HAB_N] = {      // origem no CENTRO (2,2)
         {0,0,1,0,0},
         {0,1,1,1,0},
         {1,1,1,1,1},
@@ -192,17 +223,15 @@ int main(void) {
         {0,0,1,0,0}
     };
 
-    // 4) Sobrepõe habilidades no tabuleiro (com limites)
+    // 4) Aplica habilidades (com limites, sem cobrir navio)
     aplica_habilidade(tab, cone, ORIG_CONE_R, ORIG_CONE_C,
                       MASK_ORIG_CONE_R, MASK_ORIG_CONE_C);
-
     aplica_habilidade(tab, cruz, ORIG_CRUZ_R, ORIG_CRUZ_C,
                       MASK_ORIG_CENTRO_R, MASK_ORIG_CENTRO_C);
-
     aplica_habilidade(tab, octa, ORIG_OCTA_R, ORIG_OCTA_C,
                       MASK_ORIG_CENTRO_R, MASK_ORIG_CENTRO_C);
 
-    // 5) Exibe resultado final
+    // 5) Exibe
     exibe_tabuleiro(tab);
     return 0;
 }
